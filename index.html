@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>自習席の利用状況</title>
+<style>
+:root{--bg:#fff;--tx:#1b2a36;--mu:#5b6b7a;--ok:#1f8a4c;--wn:#9a5b00;--ng:#b3261e;--bd:#d5dce3}
+@media(prefers-color-scheme:dark){:root{--bg:#161d24;--tx:#eef2f5;--mu:#a5b3c0;--ok:#5fd18b;--wn:#f0b45a;--ng:#ff8a80;--bd:#34424f}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font:16px/1.5 "Yu Gothic UI","Meiryo",sans-serif;padding:12px}
+.card{max-width:340px;margin:auto;border:1px solid var(--bd);border-radius:12px;padding:16px;text-align:center}
+h1{font-size:17px;margin:0 0 6px}
+.lb{color:var(--mu);font-size:14px}
+.num{font-size:56px;font-weight:bold;line-height:1.1;margin:2px 0}
+.num small{font-size:24px;font-weight:normal;color:var(--mu)}
+.st{font-weight:bold;font-size:17px;margin:2px 0}
+.ok{color:var(--ok)}.wn{color:var(--wn)}.ng{color:var(--ng)}
+.tm{margin-top:10px;font-size:15px}
+.note{margin-top:8px;font-size:12px;color:var(--mu)}
+</style></head><body>
+<div class="card" aria-live="polite">
+ <h1>自習席の利用状況</h1>
+ <div class="lb">空席</div>
+ <div class="num"><span id="a">--</span><small> / <span id="t">--</span>席</small></div>
+ <div class="st" id="s">読み込み中…</div>
+ <div class="lb" id="d"></div>
+ <div class="tm"><span class="lb">最終更新</span><br><span id="u">--</span></div>
+ <div class="note">座席の利用状況は目安です。実際の利用状況と異なる場合があります。</div>
+</div>
+<script>
+/* ★ OWNER を、データ用リポジトリの組織名(またはアカウント名)に書き換えてください */
+const DATA_URL='https://raw.githubusercontent.com/OWNER/seat-status-data/main/seats.json';
+const STALE=20*60e3,EVERY=60e3;
+/*logic*/
+function judge(d,now){
+ if(!d||!Number.isInteger(d.available)||!Number.isInteger(d.total)||d.total<1||d.total>500||d.available<0||d.available>d.total)return{k:'err'};
+ const t=Date.parse(d.updated);if(isNaN(t))return{k:'err'};
+ if(now-t>STALE||t-now>5*60e3)return{k:'stale',t};
+ const a=d.available,r=a/d.total;
+ return{k:'ok',t,a,total:d.total,lv:a===0?'full':(a<=3||r<=.1)?'few':'open'};
+}
+/*end*/
+const $=i=>document.getElementById(i);
+const fmt=t=>new Date(t).toLocaleString('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'});
+function show(j){
+ const set=(i,x)=>{$(i).textContent=x};
+ if(j.k==='ok'){
+  const m={full:['満席です','ng'],few:['残りわずかです','wn'],open:['空きがあります','ok']}[j.lv];
+  set('a',j.a);set('t',j.total);set('s',m[0]);$('s').className='st '+m[1];
+  set('d',j.total+'席のうち'+j.a+'席が空いています');set('u',fmt(j.t));
+ }else if(j.k==='stale'){
+  set('a','--');set('t','--');set('s','情報が更新されていません');$('s').className='st wn';
+  set('d','閉室中、または一時的に取得できない可能性があります。');set('u',fmt(j.t));
+ }else{
+  set('a','--');set('t','--');set('s','現在、空席状況を取得できません');$('s').className='st ng';set('d','');set('u','--');
+ }
+}
+async function load(){
+ try{const r=await fetch(DATA_URL,{cache:'no-cache'});if(!r.ok)throw 0;show(judge(await r.json(),Date.now()))}
+ catch(e){show({k:'err'})}
+}
+load();
+setInterval(()=>{if(!document.hidden)load()},EVERY);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
+</script></body></html>
